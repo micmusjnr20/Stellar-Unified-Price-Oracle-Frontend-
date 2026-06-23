@@ -39,8 +39,8 @@ export function Dashboard() {
       <NetworkStatusBanner />
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Price Oracle Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Price Oracle Dashboard</h1>
+          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
             Aggregated from Chainlink, Redstone, Band &amp; Reflector
           </p>
         </div>
@@ -48,7 +48,7 @@ export function Dashboard() {
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-900/30 border border-red-800 rounded-xl text-sm text-red-400" role="alert">
+        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400" role="alert">
           {error}
         </div>
       )}
@@ -73,7 +73,7 @@ export function Dashboard() {
       )}
 
       {!loading && merged.length === 0 && (
-        <div className="text-center py-32 text-gray-500">
+        <div className="text-center py-32 text-gray-400 dark:text-gray-500">
           <p className="text-lg mb-2">No price feeds available</p>
           <p className="text-sm">Connect to the aggregator API to see price data.</p>
         </div>
