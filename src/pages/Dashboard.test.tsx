@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { Dashboard } from './Dashboard'
 
@@ -23,9 +24,15 @@ vi.mock('../hooks/useWebSocket', () => ({
   })),
 }))
 
+const mockPrices = [
+  { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
+  { assetPair: 'ETH/USD', price: 3000, timestamp: Date.now(), confidence: 0.95, sources: ['redstone'] },
+]
+
 describe('Dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
   })
 
   it('renders the title', () => {
@@ -82,10 +89,7 @@ describe('Dashboard', () => {
   it('renders price cards when data exists', async () => {
     const usePrices = await import('../hooks/usePrices')
     vi.mocked(usePrices.usePrices).mockReturnValue({
-      prices: [
-        { assetPair: 'BTC/USD', price: 50000, timestamp: Date.now(), confidence: 0.99, sources: ['chainlink'] },
-        { assetPair: 'ETH/USD', price: 3000, timestamp: Date.now(), confidence: 0.95, sources: ['redstone'] },
-      ],
+      prices: mockPrices,
       loading: false,
       error: null,
       refetch: vi.fn(),
@@ -97,5 +101,75 @@ describe('Dashboard', () => {
     )
     expect(screen.getByText('BTC/USD')).toBeInTheDocument()
     expect(screen.getByText('ETH/USD')).toBeInTheDocument()
+  })
+
+  it('opens alert modal when Set alert is clicked', async () => {
+    const usePrices = await import('../hooks/usePrices')
+    vi.mocked(usePrices.usePrices).mockReturnValue({
+      prices: mockPrices,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    )
+    await user.click(screen.getByLabelText('Set alert for BTC/USD'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('New Price Alert')).toBeInTheDocument()
+  })
+
+  it('creates alert from modal and shows indicator', async () => {
+    const usePrices = await import('../hooks/usePrices')
+    vi.mocked(usePrices.usePrices).mockReturnValue({
+      prices: mockPrices,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    )
+    await user.click(screen.getByLabelText('Set alert for BTC/USD'))
+    fireEvent.change(screen.getByLabelText('Upper Threshold'), { target: { value: '60000' } })
+    await user.click(screen.getByText('Create Alert'))
+    await waitFor(() => {
+      expect(screen.getByText('Alert set')).toBeInTheDocument()
+    })
+  })
+
+  it('shows AlertBadge with active count', async () => {
+    const usePrices = await import('../hooks/usePrices')
+    vi.mocked(usePrices.usePrices).mockReturnValue({
+      prices: mockPrices,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    })
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByLabelText('Set alert for BTC/USD'))
+    fireEvent.change(screen.getByLabelText('Upper Threshold'), { target: { value: '60000' } })
+    await user.click(screen.getByText('Create Alert'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    await user.click(screen.getByLabelText('Set alert for ETH/USD'))
+    fireEvent.change(screen.getByLabelText('Upper Threshold'), { target: { value: '4000' } })
+    await user.click(screen.getByText('Create Alert'))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    const badge = screen.getByLabelText('2 active alerts')
+    expect(badge).toBeInTheDocument()
   })
 })

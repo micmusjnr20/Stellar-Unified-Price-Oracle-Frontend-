@@ -1,11 +1,15 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { usePrices } from '../hooks/usePrices'
 import { useWebSocket } from '../hooks/useWebSocket'
+import { useAlerts } from '../hooks/useAlerts'
 import { PriceCard } from '../components/PriceCard'
 import { PriceCardSkeleton } from '../components/PriceCardSkeleton'
+import { AlertModal } from '../components/AlertModal'
+import { AlertBadge } from '../components/AlertBadge'
 import { ConnectionBadge } from '../components/ConnectionBadge'
 import { NetworkStatusBanner } from '../components/NetworkStatusBanner'
+import type { AlertFormData } from '../types'
 
 function mergePrices(
   restPrices: { assetPair: string; price: number; timestamp: number; confidence: number; sources: string[] }[],
@@ -24,12 +28,36 @@ export function Dashboard() {
   const { prices, loading, error } = usePrices()
   const { livePrices, status } = useWebSocket(prices.map((p) => p.assetPair))
   const navigate = useNavigate()
+  const { alerts, addAlert, removeAlert, hasAlertsForPair, activeCount } = useAlerts()
+
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalPair, setModalPair] = useState('')
 
   const merged = mergePrices(prices, livePrices)
 
   const handleCardClick = useCallback(
     (pair: string) => navigate(`/price/${encodeURIComponent(pair)}`),
     [navigate],
+  )
+
+  const handleAlertClick = useCallback((e: React.MouseEvent, pair: string) => {
+    e.stopPropagation()
+    setModalPair(pair)
+    setModalOpen(true)
+  }, [])
+
+  const handleSave = useCallback(
+    (data: AlertFormData) => {
+      addAlert({
+        assetPair: data.assetPair,
+        upperThreshold: data.upperThreshold ? Number.parseFloat(data.upperThreshold) : null,
+        lowerThreshold: data.lowerThreshold ? Number.parseFloat(data.lowerThreshold) : null,
+        triggerOnce: data.triggerOnce,
+        active: true,
+      })
+      setModalOpen(false)
+    },
+    [addAlert],
   )
 
   const SKELETON_COUNT = 8
@@ -44,7 +72,10 @@ export function Dashboard() {
             Aggregated from Chainlink, Redstone, Band &amp; Reflector
           </p>
         </div>
-        <ConnectionBadge status={status} />
+        <div className="flex items-center gap-3">
+          <AlertBadge count={activeCount} alerts={alerts} />
+          <ConnectionBadge status={status} />
+        </div>
       </div>
 
       {error && (
@@ -66,7 +97,9 @@ export function Dashboard() {
               key={p.assetPair}
               price={p}
               isLive={livePrices.has(p.assetPair)}
+              hasAlert={hasAlertsForPair(p.assetPair)}
               onClick={() => handleCardClick(p.assetPair)}
+              onAlertClick={(e) => handleAlertClick(e, p.assetPair)}
             />
           ))}
         </div>
@@ -78,6 +111,23 @@ export function Dashboard() {
           <p className="text-sm">Connect to the aggregator API to see price data.</p>
         </div>
       )}
+
+      <AlertModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleSave}
+        alert={alerts.find((a) => a.assetPair === modalPair) ?? null}
+        defaultAssetPair={modalPair}
+        onDelete={
+          alerts.find((a) => a.assetPair === modalPair)
+            ? () => {
+                const existing = alerts.find((a) => a.assetPair === modalPair)
+                if (existing) removeAlert(existing.id)
+                setModalOpen(false)
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }
